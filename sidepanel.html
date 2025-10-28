@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <title>Echo Journal</title>
+</head>
+<body class="echo-body">
+  
+  <!-- Animated Background Elements -->
+  <div class="background-animation">
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+  </div>
+
+  <!-- Main Container -->
+  <div class="main-container">
+    
+    <!-- Header with Extreme Styling -->
+    <div class="header-container">
+      <!-- Animated gradient border -->
+      <div class="header-gradient"></div>
+      <div class="header-content">
+        <div class="header-flex">
+          <div class="header-left">
+            <!-- Animated Icon -->
+            <div class="icon-container">
+              <div class="icon-glow"></div>
+              <div class="icon-main">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-svg">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                  <path d="M2 17l10 5 10-5"></path>
+                  <path d="M2 12l10 5 10-5"></path>
+                </svg>
+              </div>
+            </div>
+            
+            <div class="title-section">
+              <h1 class="main-title">
+                ECHO JOURNAL
+              </h1>
+              <p class="subtitle">✨ AI-Powered Voice Thoughts</p>
+            </div>
+          </div>
+          
+          <!-- Record Button with Extreme Styling -->
+          <button id="record-button" class="record-button">
+            <!-- Animated background -->
+            <div class="button-bg"></div>
+            <!-- Shimmer effect -->
+            <div class="button-shimmer"></div>
+            
+            <span class="button-content">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="button-icon">
+                <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zM17.3 11c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path>
+              </svg>
+              <span id="record-button-text" class="button-text">RECORD</span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State with Extreme Animation -->
+    <div id="loading-indicator" class="loading-container hidden">
+      <div class="loading-spinner">
+        <!-- Outer ring -->
+        <div class="spinner-ring spinner-outer"></div>
+        <!-- Middle ring -->
+        <div class="spinner-ring spinner-middle"></div>
+        <!-- Inner ring -->
+        <div class="spinner-ring spinner-inner"></div>
+        <!-- Center icon -->
+        <div class="spinner-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spinner-icon">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </div>
+      </div>
+      
+      <div class="loading-text">
+        <h3 class="loading-title">PROCESSING YOUR THOUGHT...</h3>
+        <p class="loading-subtitle">🤖 AI is analyzing your audio</p>
+        <div class="loading-dots">
+          <div class="dot dot-1"></div>
+          <div class="dot dot-2"></div>
+          <div class="dot dot-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State with Extreme Design -->
+    <div id="empty-state" class="empty-container hidden">
+      <div class="empty-content">
+        <!-- Animated Icon Container -->
+        <div class="empty-icon-container">
+          <div class="empty-icon-outer">
+            <div class="empty-icon-inner">
+              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="empty-icon">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                <path d="M2 17l10 5 10-5"></path>
+                <path d="M2 12l10 5 10-5"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+        
+        <h3 class="empty-title">
+          START YOUR JOURNEY
+        </h3>
+        <p class="empty-description">
+          🎤 Record your first thought and watch AI transform it into organized insights
+        </p>
+        
+        <!-- Animated dots -->
+        <div class="empty-dots">
+          <div class="empty-dot empty-dot-1"></div>
+          <div class="empty-dot empty-dot-2"></div>
+          <div class="empty-dot empty-dot-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes List with Extreme Card Design -->
+    <div id="notes-list" class="notes-container">
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
