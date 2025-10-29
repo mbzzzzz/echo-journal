@@ -223,3 +223,54 @@ If you encounter any issues or have questions:
 ---
 
 **Made with ❤️ for productivity and thought organization**
+
+## 📸 How It Works (Screenshots)
+
+The screenshots below show the full flow of Echo Journal running in the Chrome side‑panel. Save the images in `images/screenshots/` with the same filenames to render them on GitHub.
+
+### 1) Recording and AI Processing
+
+When you click RECORD, the app starts listening, shows a live interim transcript under the title, and then displays a processing state while AI runs in the background.
+
+![Processing your thought](images/screenshots/1-processing.png)
+
+What you see:
+- Live interim transcript chip under the header
+- Big processing state with progress dots
+- This phase is very short; we create an instant note and then enhance it with AI in the background
+
+### 2) Instant Note + Enhanced AI Output
+
+Immediately after the recording stops, a new note appears with your raw summary, action items, and tags. As soon as the built‑in AI finishes, the note updates with a refined summary, insights, and confidence.
+
+![Instant + enhanced note](images/screenshots/2-note-enhanced.png)
+
+Highlights:
+- Bold summary (inline‑editable)
+- Action Items (each item inline‑editable)
+- AI Insights (key points and confidence badge)
+- Tags and Source link
+
+### 3) Due‑date Parsing and Reminders
+
+If your speech contains phrases like “tomorrow 3pm”, “next Tuesday”, or owners like “@John”, Echo extracts due dates/owners and schedules a Chrome alarm. You’ll get a native notification when it’s due.
+
+![Another example note](images/screenshots/3-dates-reminders.png)
+
+What’s happening behind the scenes:
+- NLP parses simple dates/times and owners
+- A Chrome alarm is scheduled per actionable item with a due date
+- The service worker shows a notification when the reminder triggers
+
+### 4) Multiple Notes, Consistent UX
+
+Each note follows the same structure and is fully editable. You can change the summary or any action inline; changes are persisted immediately and reminders get re‑scheduled.
+
+![Second example note](images/screenshots/4-multiple-notes.png)
+
+Tips:
+- Click any summary to edit; press Enter or blur to save
+- Click any action line to edit; reminders are re‑computed automatically
+- Click the trash icon to delete a note
+
+> If these images don’t load on GitHub yet: place the four screenshot files in `images/screenshots/` using the names shown above (`1-processing.png`, `2-note-enhanced.png`, `3-dates-reminders.png`, `4-multiple-notes.png`) and commit.
