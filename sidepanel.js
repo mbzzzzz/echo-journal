@@ -4,6 +4,7 @@ const recordButtonText = document.getElementById('record-button-text');
 const notesList = document.getElementById('notes-list');
 const loadingIndicator = document.getElementById('loading-indicator');
 const emptyState = document.getElementById('empty-state');
+const liveTranscriptEl = document.getElementById('live-transcript');
 
 let isRecording = false; // State to track recording
 let recognition = null; // Speech recognition instance
@@ -49,15 +50,20 @@ function initializeSpeechRecognition() {
     console.log('Final transcript:', finalTranscript);
     console.log('Interim transcript:', interimTranscript);
     
-    // Update UI with interim results
-    if (interimTranscript) {
-      recordButtonText.textContent = `Listening... "${interimTranscript}"`;
+    // Update UI with interim results (header pill)
+    if (interimTranscript && liveTranscriptEl) {
+      liveTranscriptEl.textContent = `"${interimTranscript}"`;
+      liveTranscriptEl.classList.remove('hidden');
     }
     
     // Process final transcript
     if (finalTranscript) {
       console.log('Processing final transcript:', finalTranscript);
       processTranscript(finalTranscript);
+      if (liveTranscriptEl) {
+        liveTranscriptEl.textContent = '';
+        liveTranscriptEl.classList.add('hidden');
+      }
     }
   };
 
@@ -91,6 +97,10 @@ function initializeSpeechRecognition() {
   recognition.onend = () => {
     console.log('Speech recognition ended');
     resetRecordingState();
+    if (liveTranscriptEl) {
+      liveTranscriptEl.textContent = '';
+      liveTranscriptEl.classList.add('hidden');
+    }
   };
 
   recognition.onnomatch = () => {
@@ -160,6 +170,9 @@ async function processTranscript(transcript) {
       
       // Update the UI with enhanced data
       updateNoteInUI(enhancedNote);
+
+      // Schedule reminders based on enhanced actions
+      try { await scheduleRemindersForNote(enhancedNote); } catch (_) {}
       
     } catch (aiError) {
       console.log('AI enhancement failed, keeping basic processing:', aiError);
@@ -179,20 +192,77 @@ async function processTranscript(transcript) {
   }
 }
 
+// Parse due date and owner from text
+function parseDueMetaFromText(text) {
+  const lower = text.toLowerCase();
+  let due = null;
+  // Simple date phrases
+  const now = new Date();
+  if (lower.includes('tomorrow')) {
+    due = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0, 0);
+  }
+  const dayMap = { 'monday':1,'tuesday':2,'wednesday':3,'thursday':4,'friday':5,'saturday':6,'sunday':0 };
+  for (const d in dayMap) {
+    if (lower.includes(d)) {
+      const target = dayMap[d];
+      const date = new Date(now);
+      const current = date.getDay();
+      let diff = target - current;
+      if (diff <= 0) diff += 7;
+      date.setDate(date.getDate() + diff);
+      date.setHours(9,0,0,0);
+      due = date;
+      break;
+    }
+  }
+  // Time like 3pm / 14:30
+  const time12 = text.match(/\b(1[0-2]|0?[1-9])\s*(am|pm)\b/i);
+  const time24 = text.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  if ((time12 || time24) && !due) {
+    due = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+  if (due && time12) {
+    let h = parseInt(time12[1], 10);
+    const mer = time12[2].toLowerCase();
+    if (mer === 'pm' && h !== 12) h += 12;
+    if (mer === 'am' && h === 12) h = 0;
+    due.setHours(h, 0, 0, 0);
+  }
+  if (due && time24) {
+    due.setHours(parseInt(time24[1],10), parseInt(time24[2],10), 0, 0);
+  }
+  // Owner like @John
+  const ownerMatch = text.match(/@([A-Za-z][\w-]+)/);
+  const owner = ownerMatch ? ownerMatch[1] : null;
+  // Priority
+  let priority = 'normal';
+  if (lower.includes('high priority') || lower.includes('urgent')) priority = 'high';
+  if (lower.includes('low priority')) priority = 'low';
+  return { due, owner, priority };
+}
+
+// Schedule reminders for a note's actions
+async function scheduleRemindersForNote(note) {
+  if (!Array.isArray(note.actions)) return;
+  for (let i = 0; i < note.actions.length; i++) {
+    const a = note.actions[i];
+    const meta = parseDueMetaFromText(a);
+    if (meta.due && meta.due.getTime() > Date.now()) {
+      const name = `echo-reminder:${note.id}:${i}`;
+      try {
+        await chrome.alarms.create(name, { when: meta.due.getTime() });
+      } catch (_) {}
+    }
+  }
+}
+
 // Process transcript using Chrome's built-in AI APIs with improved implementation
 async function processWithChromeAI(transcript) {
   try {
-    console.log('Processing with Chrome AI APIs:', transcript);
-    
-    // Check if Chrome AI APIs are available
-    if (typeof chrome.ai === 'undefined') {
-      console.log('Chrome AI APIs not available, using enhanced local processing');
-      return await enhancedLocalProcessing(transcript);
-    }
+    console.log('Processing with Chrome built-in AI APIs:', transcript);
 
-    // Use Chrome's prompt API for enhanced processing
-    const promptResult = await chrome.ai.prompt({
-      text: `You are an AI assistant that analyzes voice transcripts. Please analyze this transcript and provide a structured response.
+    // 1) Prompt API to get structured JSON
+    const promptPayload = `You are an AI assistant that analyzes voice transcripts. Please analyze this transcript and provide a structured response.
 
 TRANSCRIPT: "${transcript}"
 
@@ -210,37 +280,100 @@ Respond ONLY with valid JSON in this exact format:
   "actions": ["Specific action 1", "Specific action 2"],
   "confidence": "high",
   "insights": ["Insight 1", "Insight 2"]
-}`
-    });
+}`;
 
-    console.log('Chrome AI prompt result:', promptResult);
-
-    // Parse the AI response
-    let processedData;
+    let promptText = null;
     try {
-      // Try to extract JSON from the response
-      const jsonMatch = promptResult.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        processedData = JSON.parse(jsonMatch[0]);
-        console.log('Successfully parsed AI response:', processedData);
-      } else {
-        throw new Error('No JSON found in response');
+      promptText = await callBuiltInPromptAPI(promptPayload);
+    } catch (_) {}
+
+    let processedData;
+    if (promptText) {
+      try {
+        const jsonMatch = String(promptText).match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          processedData = JSON.parse(jsonMatch[0]);
+        }
+      } catch (_) {
+        processedData = undefined;
       }
-    } catch (parseError) {
-      console.log('Failed to parse AI response, using enhanced local processing');
+    }
+
+    if (!processedData) {
+      // Fallback to local if prompt API not available or parsing failed
       return await enhancedLocalProcessing(transcript);
     }
 
-    // Validate and clean the data
+    // 2) Summarization API for the best possible summary
+    try {
+      const betterSummary = await callBuiltInSummarizeAPI(transcript);
+      if (betterSummary && typeof betterSummary === 'string' && betterSummary.length > 20) {
+        processedData.summary = betterSummary.trim();
+      }
+    } catch (_) {}
+
+    // Validate and clean
     processedData = validateAndCleanAIData(processedData, transcript);
-    
-    console.log('Final processed data:', processedData);
     return processedData;
 
   } catch (error) {
     console.error('Chrome AI processing failed:', error);
     return await enhancedLocalProcessing(transcript);
   }
+}
+
+// Wrapper: Chrome/Window built-in Prompt API
+async function callBuiltInPromptAPI(text) {
+  // chrome.ai.prompt
+  try {
+    if (typeof chrome !== 'undefined' && chrome.ai && typeof chrome.ai.prompt === 'function') {
+      const res = await chrome.ai.prompt({ text });
+      return res && (res.text || res.output || res);
+    }
+  } catch (_) {}
+  // window.ai.prompt
+  try {
+    if (typeof window !== 'undefined' && window.ai && typeof window.ai.prompt === 'function') {
+      const res = await window.ai.prompt(text);
+      return res && (res.text || res.output || res);
+    }
+  } catch (_) {}
+  // window.ai.assistant
+  try {
+    if (typeof window !== 'undefined' && window.ai && window.ai.assistant && typeof window.ai.assistant.create === 'function') {
+      const assistant = await window.ai.assistant.create();
+      const res = await assistant.prompt(text);
+      return res && (res.text || res.output || res);
+    }
+  } catch (_) {}
+  return null;
+}
+
+// Wrapper: Chrome/Window built-in Summarization API
+async function callBuiltInSummarizeAPI(text) {
+  // chrome.ai.summarize
+  try {
+    if (typeof chrome !== 'undefined' && chrome.ai && typeof chrome.ai.summarize === 'function') {
+      const res = await chrome.ai.summarize({ text });
+      return res && (res.text || res.summary || res);
+    }
+  } catch (_) {}
+  // window.ai.summarize
+  try {
+    if (typeof window !== 'undefined' && window.ai && typeof window.ai.summarize === 'function') {
+      const res = await window.ai.summarize(text);
+      return res && (res.text || res.summary || res);
+    }
+  } catch (_) {}
+  // window.ai.summarizer
+  try {
+    if (typeof window !== 'undefined' && window.ai && window.ai.summarizer && typeof window.ai.summarizer.create === 'function') {
+      const summarizer = await window.ai.summarizer.create();
+      const res = await summarizer.summarize({ text, type: 'key-points' });
+      return res && (res.text || res.summary || res);
+    }
+  } catch (_) {}
+  return null;
 }
 
 // Enhanced local processing when Chrome AI is not available
@@ -254,7 +387,8 @@ async function enhancedLocalProcessing(transcript) {
   const tags = extractEnhancedKeywords(transcript);
   
   // Better action item extraction
-  const actions = extractEnhancedActionItems(transcript);
+  let actions = extractEnhancedActionItems(transcript);
+  actions = normalizeActions(actions, transcript);
   
   // Generate insights
   const insights = generateInsights(transcript, actions);
@@ -360,17 +494,64 @@ function generateInsights(transcript, actions) {
 // Validate and clean AI data
 function validateAndCleanAIData(data, transcript) {
   // Ensure required fields exist
+  let actions = Array.isArray(data.actions) ? data.actions : extractEnhancedActionItems(transcript);
+  actions = normalizeActions(actions, transcript).slice(0, 5);
+
   const cleaned = {
     summary: data.summary || transcript.trim(),
     tags: Array.isArray(data.tags) ? data.tags.slice(0, 6) : extractEnhancedKeywords(transcript),
-    actions: Array.isArray(data.actions) ? data.actions.map(action => 
-      action.startsWith('•') ? action : `• ${action}`
-    ).slice(0, 5) : extractEnhancedActionItems(transcript),
+    actions,
     confidence: ['high', 'medium', 'low'].includes(data.confidence) ? data.confidence : 'medium',
     insights: Array.isArray(data.insights) ? data.insights.slice(0, 3) : []
   };
   
   return cleaned;
+}
+
+// Normalize, repair and deduplicate actions using the original transcript
+function normalizeActions(actions, transcript) {
+  if (!Array.isArray(actions)) return [];
+  const tLower = transcript.toLowerCase();
+  const fixed = actions
+    .map(a => (a || '').toString().replace(/^•\s*/, '').trim())
+    .map(text => {
+      // If action is suspiciously short, try to expand from transcript
+      if (text.length < 12) {
+        const idx = tLower.indexOf(text.toLowerCase());
+        if (idx !== -1) {
+          // Expand to next punctuation or sentence end
+          const slice = transcript.slice(idx);
+          const match = slice.match(/^[^.?!\n]+/);
+          if (match && match[0].length > text.length) {
+            text = match[0].trim();
+          }
+        }
+      }
+      // If ends with a 1-2 letter fragment, append the next word from transcript
+      if (/\b[a-zA-Z]{1,2}$/.test(text)) {
+        const idx = tLower.indexOf(text.toLowerCase());
+        if (idx !== -1) {
+          const rest = transcript.slice(idx + text.length);
+          const nextWord = rest.match(/^\s+([A-Za-z][\w-]*)/);
+          if (nextWord) {
+            text = `${text.trim()} ${nextWord[1]}`.trim();
+          }
+        }
+      }
+      // Capitalize first letter
+      if (text) text = text.charAt(0).toUpperCase() + text.slice(1);
+      return text;
+    })
+    // Enforce minimum length and remove duplicates/substrings
+    .filter(x => x && x.length >= 12)
+    .reduce((acc, cur) => {
+      if (!acc.some(a => a.toLowerCase() === cur.toLowerCase())) acc.push(cur);
+      return acc;
+    }, [])
+    // Prefer longer distinct actions by removing those that are substrings of others
+    .filter((a, _, arr) => !arr.some(b => b !== a && b.toLowerCase().includes(a.toLowerCase()) && b.length > a.length))
+    .map(x => (x.startsWith('•') ? x : `• ${x}`));
+  return fixed;
 }
 
 // Extract keywords from transcript
@@ -622,10 +803,10 @@ function renderNote(note, prepend = false) {
          </h4>
          <div class="action-list">
            ${note.actions.map((action, index) => 
-             `<div class="action-item">
-                <div class="action-bullet" style="animation-delay: ${index * 0.1}s;"></div>
-                <span>${action.replace('• ', '')}</span>
-              </div>`
+            `<div class="action-item">
+               <div class="action-bullet" style="animation-delay: ${index * 0.1}s;"></div>
+               <span class="action-text" contenteditable="true" data-action-index="${index}">${action.replace('• ', '')}</span>
+             </div>`
            ).join('')}
          </div>
        </div>`
@@ -682,7 +863,7 @@ function renderNote(note, prepend = false) {
   mainContent.innerHTML = `
     <div class="note-header">
       <div class="note-text-section">
-        <p class="note-summary">${note.summary}</p>
+        <p class="note-summary" contenteditable="true">${note.summary}</p>
         <p class="note-date">${note.created}</p>
       </div>
       <button class="delete-button" data-note-id="${note.id}" title="Delete note">
@@ -725,6 +906,55 @@ function renderNote(note, prepend = false) {
   if (note.isProcessing) {
     noteElement.classList.add('processing');
   }
+
+  // Inline edit: summary
+  const summaryEl = noteElement.querySelector('.note-summary');
+  if (summaryEl) {
+    const commitSummary = async () => {
+      const newText = summaryEl.textContent || '';
+      await persistNoteChanges(note.id, { summary: newText.trim() });
+    };
+    summaryEl.addEventListener('blur', commitSummary);
+    summaryEl.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        summaryEl.blur();
+      }
+    });
+  }
+
+  // Inline edit: actions
+  const actionTextEls = noteElement.querySelectorAll('.action-text');
+  if (actionTextEls && actionTextEls.length) {
+    actionTextEls.forEach((el) => {
+      const idx = Number(el.getAttribute('data-action-index'));
+      const commitAction = async () => {
+        const newText = (el.textContent || '').trim();
+        const old = Array.isArray(note.actions) ? [...note.actions] : [];
+        old[idx] = newText ? (newText.startsWith('•') ? newText : `• ${newText}`) : old[idx];
+        await persistNoteChanges(note.id, { actions: old });
+        try { await scheduleRemindersForNote({ ...note, actions: old }); } catch(_){}
+      };
+      el.addEventListener('blur', commitAction);
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          el.blur();
+        }
+      });
+    });
+  }
+}
+
+// Persist note changes helper
+async function persistNoteChanges(noteId, updates) {
+  const { notes = [] } = await chrome.storage.local.get('notes');
+  const idx = notes.findIndex(n => n.id === noteId);
+  if (idx === -1) return;
+  const updated = { ...notes[idx], ...updates };
+  notes[idx] = updated;
+  await chrome.storage.local.set({ notes });
+  updateNoteInUI(updated);
 }
 
 // --- 4. Helper Function: Saves a new note to local storage ---
